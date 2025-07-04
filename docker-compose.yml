@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Serviço da Aplicação
+  app:
+    build:
+      context: . # Caminho para o diretório que contém o Dockerfile
+      dockerfile: Dockerfile
+    container_name: api
+    restart: unless-stopped
+    volumes:
+      - .:/usr/src/app # Mapeia o código local para desenvolvimento
+    networks:
+      - app-network
+    # Labels para que o Traefik descubra e configure este serviço automaticamente
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`localhost`)" # Rota: acesse via http://localhost:8000
+      - "traefik.http.routers.app.entrypoints=web"
+      - "traefik.http.services.app.loadbalancer.server.port=8000" # Porta interna da sua aplicação
+
+  # Serviço do Proxy Reverso (Traefik)
+  traefik:
+    image: traefik:v3.0 # Usando uma imagem oficial e recente do Traefik
+    container_name: my-traefik
+    restart: unless-stopped
+    ports:
+      - "8000:80" # Expõe a porta 80 do Traefik como 8000 na sua máquina
+      - "8080:8080" # Expõe a porta do Dashboard do Traefik
+    volumes:
+      # Monta o socket do Docker para que o Traefik possa detectar outros contêineres
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
